@@ -15,6 +15,7 @@ import {
 import { useGetBusinessCategoriesQuery } from "./store/api/endpoints/businessCategoryApi";
 import { useGetSubscriptionPlansQuery } from "./store/api/endpoints/subscriptionApi";
 import { selectRole } from "./features/auth/authSlice";
+import { isValidEmail, isValidPhoneNumber, normalizePhoneNumber, formatPhoneInput } from "./utils/validation";
 
 const ManageUser = () => {
   const navigate = useNavigate();
@@ -23,19 +24,19 @@ const ManageUser = () => {
   const isEditMode = !!id;
 
   const [formData, setFormData] = useState({
-    userId: "",
-    password: "",
+    // Required fields matching Salon schema
+    salonName: "",
     salonAddress: "",
+    licenseToken: "",
+    ownerName: "",
     gstin: "",
-    userName: "",
     email: "",
-    contact: "",
-    businessName: "",
+    MobileNumber: "",
+    password: "",
     businessCategory: "",
-    planType: "",
-    duration: "",
-    startDate: "",
-    licenseKey: "",
+    // Optional fields from Salon schema
+    gender: "",
+    dateOfBirth: "",
   });
 
   const [toast, setToast] = useState({ show: false, message: "" });
@@ -75,37 +76,35 @@ const ManageUser = () => {
   useEffect(() => {
     if (isEditMode && salonData) {
       const salon = salonData;
+      // Normalize phone number for display (remove +91 prefix if present)
+      const displayMobileNumber = salon.MobileNumber || salon.mobileNumber || "";
       setFormData({
-        userId: salon.id?.slice(-6) || salon._id?.slice(-6) || "",
-        password: "", // Don't populate password
+        salonName: salon.salonName || "",
         salonAddress: salon.salonAddress || "",
+        licenseToken: salon.licenseToken || "",
+        ownerName: salon.ownerName || "",
         gstin: salon.gstin || "",
-        userName: salon.ownerName || "",
         email: salon.email || "",
-        contact: salon.mobileNumber || salon.MobileNumber || "",
-        businessName: salon.salonName || "",
+        MobileNumber: normalizePhoneNumber(displayMobileNumber),
+        password: "", // Don't populate password
         businessCategory: salon.businessCategory || "",
-        planType: salon.subscriptionPlan?.name || "",
-        duration: salon.subscriptionPlan?.duration || "",
-        startDate: salon.subscriptionStartDate ? new Date(salon.subscriptionStartDate).toISOString().split('T')[0] : "",
-        licenseKey: salon.license?.licenseKey || salon.licenseKey || "",
+        gender: salon.gender || "",
+        dateOfBirth: salon.dateOfBirth ? new Date(salon.dateOfBirth).toISOString().split('T')[0] : "",
       });
     }
   }, [isEditMode, salonData]);
 
   const handleChange = (field) => (event) => {
+    let value = event.target.value;
+    
+    // Format phone number input if it's MobileNumber field
+    if (field === 'MobileNumber') {
+      value = formatPhoneInput(value);
+    }
+    
     setFormData((prev) => ({
       ...prev,
-      [field]: event.target.value,
-    }));
-  };
-
-  const handleGenerateUserId = () => {
-    const randomNumber = Math.floor(Math.random() * 9000) + 1000;
-    const newUserId = `UI${randomNumber}`;
-    setFormData((prev) => ({
-      ...prev,
-      userId: newUserId,
+      [field]: value,
     }));
   };
 
@@ -117,20 +116,34 @@ const ManageUser = () => {
     setToast((prev) => ({ ...prev, show: false }));
   };
 
-  const handleGenerateKey = () => {
+  const handleGenerateLicenseToken = () => {
     const randomChunk = Math.random().toString(16).slice(2, 10).toUpperCase();
+    const categoryPrefix = formData.businessCategory ? formData.businessCategory.substring(0, 3).toUpperCase() : 'QXP';
     setFormData((prev) => ({
       ...prev,
-      licenseKey: `QXP-${prev.businessCategory.substring(0, 3).toUpperCase()}-${randomChunk}`,
+      licenseToken: `QXP-${categoryPrefix}-${randomChunk}`,
     }));
   };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
     
-    // Validation
-    if (!formData.userName || !formData.email || !formData.businessName || !formData.businessCategory) {
-      triggerToast("Please fill in all required fields");
+    // Validation - match backend Salon schema requirements (GSTIN is optional)
+    if (!formData.salonName || !formData.salonAddress || !formData.ownerName || 
+        !formData.email || !formData.MobileNumber) {
+      triggerToast("Please fill in all required fields (Salon Name, Address, Owner Name, Email, Mobile Number)");
+      return;
+    }
+
+    // Validate email format
+    if (!isValidEmail(formData.email)) {
+      triggerToast("Please enter a valid email address");
+      return;
+    }
+
+    // Validate phone number
+    if (!isValidPhoneNumber(formData.MobileNumber)) {
+      triggerToast("Mobile number must be exactly 10 digits");
       return;
     }
 
@@ -139,26 +152,27 @@ const ManageUser = () => {
         triggerToast("Password is required for new users");
         return;
       }
-      if (!formData.salonAddress) {
-        triggerToast("Salon address is required");
-        return;
-      }
-      if (!formData.contact) {
-        triggerToast("Contact number is required");
+      if (!formData.licenseToken) {
+        triggerToast("License Token is required for new users");
         return;
       }
     }
 
     try {
+      // Build salon data matching backend Salon schema exactly
       const salonData = {
-        ownerName: formData.userName,
-        email: formData.email,
-        MobileNumber: formData.contact,
+        salonName: formData.salonName,
         salonAddress: formData.salonAddress,
-        gstin: formData.gstin,
-        salonName: formData.businessName,
-        businessCategory: formData.businessCategory,
+        licenseToken: formData.licenseToken,
+        ownerName: formData.ownerName,
+        gstin: formData.gstin || undefined, // GSTIN is optional
+        email: formData.email,
+        MobileNumber: formData.MobileNumber,
+        businessCategory: formData.businessCategory || undefined,
         password: formData.password || undefined, // Only include if provided
+        // Optional fields
+        gender: formData.gender || undefined,
+        dateOfBirth: formData.dateOfBirth ? new Date(formData.dateOfBirth) : undefined,
       };
 
       if (isEditMode) {
@@ -168,25 +182,23 @@ const ManageUser = () => {
         } else {
           await updateSalon({ id, ...salonData }).unwrap();
         }
-        triggerToast(`User (${formData.userId}) Successfully Updated`);
+        triggerToast(`Salon (${formData.salonName}) Successfully Updated`);
       } else {
         await createSalon(salonData).unwrap();
-        triggerToast(`User Successfully Created`);
+        triggerToast(`Salon Successfully Created`);
         // Reset form
         setFormData({
-          userId: "",
-          password: "",
+          salonName: "",
           salonAddress: "",
+          licenseToken: "",
+          ownerName: "",
           gstin: "",
-          userName: "",
           email: "",
-          contact: "",
-          businessName: "",
+          MobileNumber: "",
+          password: "",
           businessCategory: "",
-          planType: "",
-          duration: "",
-          startDate: "",
-          licenseKey: "",
+          gender: "",
+          dateOfBirth: "",
         });
       }
       
@@ -221,12 +233,11 @@ const ManageUser = () => {
             <UserFormCard
               formData={formData}
               onChange={handleChange}
-              onGenerateUserId={handleGenerateUserId}
-              onGenerateKey={handleGenerateKey}
+              onGenerateLicenseToken={handleGenerateLicenseToken}
               onSubmit={handleSubmit}
               isLoading={isCreating || isUpdating}
               categories={categoriesData?.categories || []}
-              plans={plansData?.plans || []}
+              isEditMode={isEditMode}
             />
           )}
         </div>

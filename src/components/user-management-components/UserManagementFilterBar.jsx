@@ -91,7 +91,7 @@ const UserManagementFilterBar = ({ filters, onFilterChange, onReset }) => {
             >
               <option value="All Resellers">All Resellers</option>
               {resellers.map((reseller) => (
-                <option key={reseller._id || reseller.id} value={reseller.name || reseller.resellerId}>
+                <option key={reseller._id || reseller.id} value={reseller.resellerId || reseller.id}>
                   {reseller.name || reseller.resellerId || 'N/A'}
                 </option>
               ))}

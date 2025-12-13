@@ -50,7 +50,9 @@ const UserManagementTable = ({
     startDate: salon.createdAt ? new Date(salon.createdAt).toLocaleDateString('en-GB') : 'N/A',
     resellerId: salon.resellerId || 'N/A',
     resellerLabel: salon.resellerName || salon.resellerId || 'N/A',
-    status: salon.status || 'Inactive',
+    status: salon.status === 'suspended' ? 'Suspended' : 
+            salon.status === 'active' ? 'Active' : 
+            salon.status === 'pending' ? 'Pending' : 'Pending',
     _id: salon._id || salon.id,
   }));
 
@@ -65,7 +67,7 @@ const UserManagementTable = ({
     }, {});
   });
 
-  const getStatus = (userId) => userStatus[userId] || "Inactive";
+  const getStatus = (userId) => userStatus[userId] || "Pending";
 
   const filteredData = useMemo(() => {
     const normaliseAllUsers = (value) =>
@@ -120,30 +122,32 @@ const UserManagementTable = ({
     }
 
     const currentStatus = getStatus(userId);
-    const newStatus = currentStatus === "Active" ? "Inactive" : "Active";
+    // Toggle between "active" and "suspended" (not "inactive")
+    const newStatus = currentStatus === "Active" ? "suspended" : "active";
+    const displayStatus = newStatus === "active" ? "Active" : "Suspended";
 
     try {
       // Use appropriate update function based on role
       if (role === 'reseller') {
         await updateResellerSalon({ 
           id: salon._id, 
-          status: newStatus.toLowerCase() 
+          status: newStatus 
         }).unwrap();
       } else {
         await updateSalon({ 
           id: salon._id, 
-          status: newStatus.toLowerCase() 
+          status: newStatus 
         }).unwrap();
       }
       
       // Update local state on success
       setUserStatus((prev) => {
         const nextState = { ...prev };
-        nextState[userId] = newStatus;
+        nextState[userId] = displayStatus;
         return nextState;
       });
       
-      onNotify?.(`User ${newStatus === "Active" ? "activated" : "deactivated"} successfully`);
+      onNotify?.(`User ${newStatus === "active" ? "activated" : "suspended"} successfully`);
       onRefresh?.(); // Refresh data if callback provided
     } catch (error) {
       const errorMessage = error?.data?.message || "Failed to update user status";
@@ -153,7 +157,10 @@ const UserManagementTable = ({
   };
 
   // Check if a user is activated
-  const isActivated = (userId) => getStatus(userId) === "Active";
+  const isActivated = (userId) => {
+    const status = getStatus(userId);
+    return status === "Active" || status === "active";
+  };
 
   // Handle view button click
   const handleView = (row) => {

@@ -1,19 +1,17 @@
 import React from "react";
 import CredentialSection from "./CredentialSection";
 import BusinessProfileSection from "./BusinessProfileSection";
-import PlanSection from "./PlanSection";
-import LicenseSection from "./LicenseSection";
+import LicenseTokenSection from "./LicenseTokenSection";
 import FormActions from "./FormActions";
 
 const UserFormCard = ({
   formData,
   onChange,
-  onGenerateUserId,
-  onGenerateKey,
+  onGenerateLicenseToken,
   onSubmit,
   isLoading = false,
   categories = [],
-  plans = [],
+  isEditMode = false,
 }) => {
   return (
     <form
@@ -21,16 +19,15 @@ const UserFormCard = ({
       className="space-y-6 rounded-2xl border border-gray-100 bg-white p-8 shadow-sm"
     >
       <CredentialSection
-        data={formData}
+        data={{ ...formData, isEditMode }}
         onChange={onChange}
-        onGenerateUserId={onGenerateUserId}
       />
       <BusinessProfileSection data={formData} onChange={onChange} categories={categories} />
-      <PlanSection data={formData} onChange={onChange} plans={plans} />
-      <LicenseSection
+      <LicenseTokenSection
         data={formData}
         onChange={onChange}
-        onGenerate={onGenerateKey}
+        onGenerate={onGenerateLicenseToken}
+        isEditMode={isEditMode}
       />
       <FormActions isLoading={isLoading} />
     </form>

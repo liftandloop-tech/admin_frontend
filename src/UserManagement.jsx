@@ -29,7 +29,7 @@ import { selectRole } from "./features/auth/authSlice";
  * - Accessible at "/user-management" route
  *
  * Features:
- * - Activate/Deactivate toggle for each user
+ * - Activate/Suspend toggle for each user
  * - View button for user details
  * - Pagination (3 entries per page)
  * - Working filter functionality

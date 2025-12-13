@@ -24,14 +24,17 @@ export const userManagementApi = baseApi.injectEndpoints({
      */
     getAllSalons: builder.query({
       query: (params = {}) => {
-        const { page = 1, limit = 10, search = '', status = '', resellerId = '', businessCategory = '' } = params;
+        const { page = 1, limit = 10, search = '', status = '', resellerId = '', businessType = '', sortBy = 'createdAt', sortOrder = 'desc' } = params;
         const queryParams = new URLSearchParams();
         if (page) queryParams.append('page', page);
         if (limit) queryParams.append('limit', limit);
         if (search) queryParams.append('search', search);
         if (status) queryParams.append('status', status);
         if (resellerId) queryParams.append('resellerId', resellerId);
-        if (businessCategory) queryParams.append('businessCategory', businessCategory);
+        // Backend uses 'businessType' query param, not 'businessCategory'
+        if (businessType) queryParams.append('businessType', businessType);
+        if (sortBy) queryParams.append('sortBy', sortBy);
+        if (sortOrder) queryParams.append('sortOrder', sortOrder);
         
         return {
           url: '/api/super-admin/salons',
@@ -88,7 +91,7 @@ export const userManagementApi = baseApi.injectEndpoints({
      * Permission: salon:manageAll
      */
     getSalonDetail: builder.query({
-      query: (id) => `/api/super-admin/salons/${id}`,
+      query: (id) => `/api/super-admin/salons/${encodeURIComponent(id)}`,
       transformResponse: (response) => {
         if (response.success && response.data) {
           return response.data.salon || response.data;
@@ -104,7 +107,7 @@ export const userManagementApi = baseApi.injectEndpoints({
      * Permission: salon:manageAssigned
      */
     getResellerSalonDetail: builder.query({
-      query: (id) => `/api/reseller/salons/${id}`,
+      query: (id) => `/api/reseller/salons/${encodeURIComponent(id)}`,
       transformResponse: (response) => {
         if (response.success && response.data) {
           return response.data;
@@ -141,7 +144,7 @@ export const userManagementApi = baseApi.injectEndpoints({
      */
     updateSalon: builder.mutation({
       query: ({ id, ...salonData }) => ({
-        url: `/api/super-admin/salons/${id}`,
+        url: `/api/super-admin/salons/${encodeURIComponent(id)}`,
         method: 'PUT',
         body: salonData,
       }),
@@ -164,7 +167,7 @@ export const userManagementApi = baseApi.injectEndpoints({
      */
     updateResellerSalon: builder.mutation({
       query: ({ id, ...salonData }) => ({
-        url: `/api/reseller/salons/${id}`,
+        url: `/api/reseller/salons/${encodeURIComponent(id)}`,
         method: 'PUT',
         body: salonData,
       }),
@@ -184,12 +187,25 @@ export const userManagementApi = baseApi.injectEndpoints({
      * Extend Plan
      * POST /api/super-admin/salons/:id/extend-plan
      * Permission: salon:manageAll or salon:manageAssigned
+     * 
+     * Body parameters (at least one required):
+     * - extendByMonths: number (optional) - Number of months to extend
+     * - newEndDateISO: string (optional) - ISO date string for new expiry date
+     * - additionalCostINR: number (optional) - Additional cost in INR
+     * - notes: string (optional) - Notes about the extension
+     * - notify: boolean (optional) - Whether to notify the salon owner via email
      */
     extendPlan: builder.mutation({
-      query: ({ id, durationDays }) => ({
-        url: `/api/super-admin/salons/${id}/extend-plan`,
+      query: ({ id, extendByMonths, newEndDateISO, additionalCostINR, notes, notify }) => ({
+        url: `/api/super-admin/salons/${encodeURIComponent(id)}/extend-plan`,
         method: 'POST',
-        body: { durationDays },
+        body: {
+          ...(extendByMonths !== undefined && { extendByMonths }),
+          ...(newEndDateISO && { newEndDateISO }),
+          ...(additionalCostINR !== undefined && { additionalCostINR }),
+          ...(notes && { notes }),
+          ...(notify !== undefined && { notify }),
+        },
       }),
       transformResponse: (response) => {
         if (response.success && response.data) {
@@ -201,6 +217,7 @@ export const userManagementApi = baseApi.injectEndpoints({
         { type: 'Salon', id },
         'Salon',
         'License',
+        'Activity',
       ],
     }),
 
@@ -208,11 +225,27 @@ export const userManagementApi = baseApi.injectEndpoints({
      * Deactivate Key
      * POST /api/super-admin/salons/:id/deactivate-key
      * Permission: salon:manageAll or salon:manageAssigned
+     * 
+     * Body parameters:
+     * - type: string (required) - "temporary" or "permanent"
+     * - reason: string (required) - Reason for deactivation
+     * - effectiveFrom: string (optional) - ISO date string, defaults to now
+     * - notifyOwner: boolean (optional) - Whether to notify the salon owner via email
+     * - attachAudit: boolean (optional) - Whether to attach audit report to notification
+     * - allowReactivation: boolean (optional) - Whether reactivation is allowed
      */
     deactivateKey: builder.mutation({
-      query: (id) => ({
-        url: `/api/super-admin/salons/${id}/deactivate-key`,
+      query: ({ id, type, reason, effectiveFrom, notifyOwner, attachAudit, allowReactivation }) => ({
+        url: `/api/super-admin/salons/${encodeURIComponent(id)}/deactivate-key`,
         method: 'POST',
+        body: {
+          type,
+          reason,
+          ...(effectiveFrom && { effectiveFrom }),
+          ...(notifyOwner !== undefined && { notifyOwner }),
+          ...(attachAudit !== undefined && { attachAudit }),
+          ...(allowReactivation !== undefined && { allowReactivation }),
+        },
       }),
       transformResponse: (response) => {
         if (response.success && response.data) {
@@ -220,10 +253,11 @@ export const userManagementApi = baseApi.injectEndpoints({
         }
         return response;
       },
-      invalidatesTags: (result, error, id) => [
+      invalidatesTags: (result, error, { id }) => [
         { type: 'Salon', id },
         'Salon',
         'License',
+        'Activity',
       ],
     }),
 
@@ -233,7 +267,14 @@ export const userManagementApi = baseApi.injectEndpoints({
      * Permission: salon:manageAll or salon:manageAssigned
      */
     getSalonRevenue: builder.query({
-      query: (id) => `/api/super-admin/salons/${id}/revenue-analytics`,
+      query: ({ id, period = 'month', startDate, endDate }) => {
+        const queryParams = new URLSearchParams();
+        if (period) queryParams.append('period', period);
+        if (startDate) queryParams.append('startDate', startDate);
+        if (endDate) queryParams.append('endDate', endDate);
+        const queryString = queryParams.toString();
+        return `/api/super-admin/salons/${encodeURIComponent(id)}/revenue-analytics${queryString ? `?${queryString}` : ''}`;
+      },
       transformResponse: (response) => {
         if (response.success && response.data) {
           return response.data;
@@ -249,7 +290,14 @@ export const userManagementApi = baseApi.injectEndpoints({
      * Permission: salon:manageAll or salon:manageAssigned
      */
     getSalonCustomers: builder.query({
-      query: (id) => `/api/super-admin/salons/${id}/customers`,
+      query: ({ id, page = 1, limit = 10, search = '' }) => {
+        const queryParams = new URLSearchParams();
+        if (page) queryParams.append('page', page);
+        if (limit) queryParams.append('limit', limit);
+        if (search) queryParams.append('search', search);
+        const queryString = queryParams.toString();
+        return `/api/super-admin/salons/${encodeURIComponent(id)}/customers${queryString ? `?${queryString}` : ''}`;
+      },
       transformResponse: (response) => {
         if (response.success && response.data) {
           return response.data;
@@ -265,7 +313,13 @@ export const userManagementApi = baseApi.injectEndpoints({
      * Permission: salon:manageAll or salon:manageAssigned
      */
     getSalonActivity: builder.query({
-      query: (id) => `/api/super-admin/salons/${id}/activity-log`,
+      query: ({ id, page = 1, limit = 10 }) => {
+        const queryParams = new URLSearchParams();
+        if (page) queryParams.append('page', page);
+        if (limit) queryParams.append('limit', limit);
+        const queryString = queryParams.toString();
+        return `/api/super-admin/salons/${encodeURIComponent(id)}/activity-log${queryString ? `?${queryString}` : ''}`;
+      },
       transformResponse: (response) => {
         if (response.success && response.data) {
           return response.data;
