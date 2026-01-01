@@ -32,6 +32,8 @@ export const authApi = baseApi.injectEndpoints({
               id: user._id || user.id,
               name: user.name,
               email: user.email,
+              contact: user.contact,
+              city: user.city,
             },
             role: user.role || 'super_admin',
             permissions: user.permissions || getDefaultPermissions('super_admin'),
@@ -110,6 +112,8 @@ export const authApi = baseApi.injectEndpoints({
               id: user._id || user.id,
               name: user.name,
               email: user.email,
+              contact: user.contact,
+              city: user.city,
             },
             role: user.role || 'super_admin',
             permissions: user.permissions || getDefaultPermissions('super_admin'),
@@ -155,6 +159,19 @@ export const authApi = baseApi.injectEndpoints({
     updateResellerProfile: builder.mutation({
       query: (data) => ({
         url: '/api/reseller/auth/profile',
+        method: 'PUT',
+        body: data,
+      }),
+      invalidatesTags: ['User'],
+    }),
+
+    /**
+     * Update Super Admin Profile
+     * PUT /api/super-admin/auth/profile
+     */
+    updateSuperAdminProfile: builder.mutation({
+      query: (data) => ({
+        url: '/api/super-admin/auth/profile',
         method: 'PUT',
         body: data,
       }),
@@ -211,6 +228,7 @@ export const {
   useGetSuperAdminProfileQuery,
   useGetResellerProfileQuery,
   useUpdateResellerProfileMutation,
+  useUpdateSuperAdminProfileMutation,
   useRefreshSuperAdminTokenMutation,
   useRefreshResellerTokenMutation,
 } = authApi;

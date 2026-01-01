@@ -4,10 +4,11 @@ import ProfileSidebar from "./components/profile-components/ProfileSidebar";
 import ProfileHeader from "./components/profile-components/ProfileHeader";
 import CredentialForm from "./components/profile-components/CredentialForm";
 import SuccessToast from "./components/common/SuccessToast";
-import { 
+import {
   useGetSuperAdminProfileQuery,
   useGetResellerProfileQuery,
-  useUpdateResellerProfileMutation 
+  useUpdateResellerProfileMutation,
+  useUpdateSuperAdminProfileMutation
 } from "./store/api/endpoints/authApi";
 import { selectRole } from "./features/auth/authSlice";
 
@@ -44,16 +45,18 @@ const Profile = () => {
   const { data: superAdminData, isLoading: isLoadingSuperAdmin } = useGetSuperAdminProfileQuery(undefined, {
     skip: role !== 'super_admin',
   });
-  
+
   const { data: resellerData, isLoading: isLoadingReseller } = useGetResellerProfileQuery(undefined, {
     skip: role !== 'reseller',
   });
 
-  const [updateResellerProfile, { isLoading: isUpdating }] = useUpdateResellerProfileMutation();
+  const [updateResellerProfile, { isLoading: isUpdatingResellerProfile }] = useUpdateResellerProfileMutation();
+  const [updateSuperAdminProfile, { isLoading: isUpdatingSuperAdminProfile }] = useUpdateSuperAdminProfileMutation();
 
   // Determine which data to use
   const profileData = role === 'super_admin' ? superAdminData : resellerData;
   const isLoading = role === 'super_admin' ? isLoadingSuperAdmin : isLoadingReseller;
+  const isUpdating = role === 'super_admin' ? isUpdatingSuperAdminProfile : isUpdatingResellerProfile;
 
   // Shared form state
   const [formData, setFormData] = useState({
@@ -103,8 +106,17 @@ const Profile = () => {
         await updateResellerProfile(updateData).unwrap();
         setToast({ show: true, message: "Profile updated successfully!" });
       } else {
-        // Super Admin profile update would go here when backend endpoint is available
-        setToast({ show: true, message: "Super Admin profile update not yet implemented" });
+        const updateData = {
+          name: formData.userName,
+          email: formData.email,
+          contact: formData.contact,
+          city: formData.city,
+        };
+        if (formData.password) {
+          updateData.password = formData.password;
+        }
+        await updateSuperAdminProfile(updateData).unwrap();
+        setToast({ show: true, message: "Profile updated successfully!" });
       }
     } catch (error) {
       const errorMessage = error?.data?.message || error?.message || "Failed to update profile";
@@ -147,22 +159,35 @@ const Profile = () => {
             <div className="mt-6 flex justify-end">
               <button
                 onClick={handleSubmit}
-                className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm"
+                disabled={isUpdating}
+                className={`flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm ${isUpdating ? 'opacity-70 cursor-not-allowed' : ''}`}
               >
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                  />
-                </svg>
-                <span>Save</span>
+                {isUpdating ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>Saving...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                      />
+                    </svg>
+                    <span>Save</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

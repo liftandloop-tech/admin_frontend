@@ -5,8 +5,8 @@ import Sidebar from "./components/manage-user-components/Sidebar";
 import UserManagementHeader from "./components/user-management-components/UserManagementHeader";
 import UserFormCard from "./components/manage-user-components/UserFormCard";
 import SuccessToast from "./components/common/SuccessToast";
-import { 
-  useCreateSalonMutation, 
+import {
+  useCreateSalonMutation,
   useUpdateSalonMutation,
   useUpdateResellerSalonMutation,
   useGetSalonDetailQuery,
@@ -28,6 +28,7 @@ const ManageUser = () => {
     salonName: "",
     salonAddress: "",
     licenseToken: "",
+    licenseKey: "",
     ownerName: "",
     gstin: "",
     email: "",
@@ -45,12 +46,12 @@ const ManageUser = () => {
   const [createSalon, { isLoading: isCreating }] = useCreateSalonMutation();
   const [updateSalon, { isLoading: isUpdatingSuperAdmin }] = useUpdateSalonMutation();
   const [updateResellerSalon, { isLoading: isUpdatingReseller }] = useUpdateResellerSalonMutation();
-  
+
   // Fetch salon data if editing - use different endpoints based on role
   const { data: superAdminSalonData, isLoading: isLoadingSuperAdmin } = useGetSalonDetailQuery(id, {
     skip: !isEditMode || role === 'reseller',
   });
-  
+
   const { data: resellerSalonData, isLoading: isLoadingReseller } = useGetResellerSalonDetailQuery(id, {
     skip: !isEditMode || role !== 'reseller',
   });
@@ -82,6 +83,7 @@ const ManageUser = () => {
         salonName: salon.salonName || "",
         salonAddress: salon.salonAddress || "",
         licenseToken: salon.licenseToken || "",
+        licenseKey: salon.license?.licenseKey || "", // Populate license key
         ownerName: salon.ownerName || "",
         gstin: salon.gstin || "",
         email: salon.email || "",
@@ -96,12 +98,12 @@ const ManageUser = () => {
 
   const handleChange = (field) => (event) => {
     let value = event.target.value;
-    
+
     // Format phone number input if it's MobileNumber field
     if (field === 'MobileNumber') {
       value = formatPhoneInput(value);
     }
-    
+
     setFormData((prev) => ({
       ...prev,
       [field]: value,
@@ -127,10 +129,10 @@ const ManageUser = () => {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    
+
     // Validation - match backend Salon schema requirements (GSTIN is optional)
-    if (!formData.salonName || !formData.salonAddress || !formData.ownerName || 
-        !formData.email || !formData.MobileNumber) {
+    if (!formData.salonName || !formData.salonAddress || !formData.ownerName ||
+      !formData.email || !formData.MobileNumber) {
       triggerToast("Please fill in all required fields (Salon Name, Address, Owner Name, Email, Mobile Number)");
       return;
     }
@@ -191,6 +193,7 @@ const ManageUser = () => {
           salonName: "",
           salonAddress: "",
           licenseToken: "",
+          licenseKey: "",
           ownerName: "",
           gstin: "",
           email: "",
@@ -201,7 +204,7 @@ const ManageUser = () => {
           dateOfBirth: "",
         });
       }
-      
+
       // Navigate back after a delay
       setTimeout(() => {
         navigate("/user-management");

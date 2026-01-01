@@ -43,6 +43,22 @@ const LicenseTokenSection = ({ data, onChange, onGenerate, isEditMode = false })
           </button>
         )}
       </div>
+
+      {/* Display License Key if available (Edit Mode only) */}
+      {isEditMode && data.licenseKey && (
+        <div className="mt-4 border-t pt-4">
+          <InputField
+            label="Active License Key"
+            value={data.licenseKey}
+            readOnly
+            disabled
+            placeholder="No active license"
+          />
+          <p className="mt-1 text-xs text-gray-500">
+            This is the current active license key for the POS terminal. Sharing this allows the user to activate their plan.
+          </p>
+        </div>
+      )}
     </section>
   );
 };
