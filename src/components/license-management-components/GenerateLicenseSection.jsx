@@ -28,42 +28,42 @@ const GenerateLicenseSection = ({ onNotify, prefillData = null, onLicenseGenerat
   const [selectedSalon, setSelectedSalon] = useState(null);
   const [generatedLicense, setGeneratedLicense] = useState(null); // Store generated license key
   const [showLicenseModal, setShowLicenseModal] = useState(false); // Control modal visibility
-  
+
   // Fetch salons - filter to show pending salons first
   // Use different endpoints based on role (though resellers shouldn't see this section)
-  const { data: superAdminSalonsData, isLoading: isLoadingSuperAdmin } = useGetAllSalonsQuery({ 
-    page: 1, 
+  const { data: superAdminSalonsData, isLoading: isLoadingSuperAdmin } = useGetAllSalonsQuery({
+    page: 1,
     limit: 1000,
     status: "" // Get all to filter client-side
   }, {
     skip: role === 'reseller',
   });
-  
-  const { data: resellerSalonsData, isLoading: isLoadingReseller } = useGetResellerSalonsQuery({ 
-    page: 1, 
+
+  const { data: resellerSalonsData, isLoading: isLoadingReseller } = useGetResellerSalonsQuery({
+    page: 1,
     limit: 1000,
     status: "" // Get all to filter client-side
   }, {
     skip: role !== 'reseller',
   });
-  
+
   // Use appropriate data based on role
   const salonsData = role === 'reseller' ? resellerSalonsData : superAdminSalonsData;
   const isLoadingSalons = role === 'reseller' ? isLoadingReseller : isLoadingSuperAdmin;
-  
+
   // Separate pending and other salons
   const allSalons = salonsData?.salons || [];
   const pendingSalons = allSalons.filter(s => s.status?.toLowerCase() === 'pending');
   const otherSalons = allSalons.filter(s => s.status?.toLowerCase() !== 'pending');
   const salons = [...pendingSalons, ...otherSalons]; // Pending first
-  
+
   // Fetch subscription plans for plan dropdown - skip for resellers (super-admin only)
   const { data: plansData, isLoading: isLoadingPlans } = useGetSubscriptionPlansQuery(
     { page: 1, limit: 100 },
     { skip: role === 'reseller' }
   );
   const plans = plansData?.plans || [];
-  
+
   // License creation mutation
   const [createLicense, { isLoading: isCreating }] = useCreateLicenseMutation();
 
@@ -148,16 +148,19 @@ const GenerateLicenseSection = ({ onNotify, prefillData = null, onLicenseGenerat
       console.log('License generation response:', result);
 
       // Extract license key from response
-      // transformResponse now returns: { licenseKey, expiryDate, salon, ...licenseFields }
-      const licenseKey = result?.licenseKey;
-      const expiryDate = result?.expiryDate;
-      
+      // Since queryFn bypasses transformResponse, we receive the raw response: { success, data: { license, salon } }
+      const responseData = result.data || result;
+      const licenseObj = responseData.license || {};
+
+      const licenseKey = licenseObj.licenseKey || responseData.licenseKey;
+      const expiryDate = licenseObj.expiryDate || responseData.expiryDate;
+
       // Get salon info from response or use the selected salon
-      const salonInfo = result?.salon || salon;
+      const salonInfo = responseData.salon || salon;
       const salonName = salonInfo?.salonName || salonInfo?.ownerName || salon?.salonName || salon?.ownerName || 'User';
-      
+
       console.log('Extracted values:', { licenseKey, expiryDate, salonName, fullResult: result });
-      
+
       if (licenseKey) {
         // Store the generated license and show modal
         setGeneratedLicense({
@@ -175,13 +178,13 @@ const GenerateLicenseSection = ({ onNotify, prefillData = null, onLicenseGenerat
       onNotify?.(
         `License generated successfully${salon ? ` for ${salon.salonName || salon.ownerName}` : ''}${licenseKey ? `. License Key: ${licenseKey}` : ''}`
       );
-      
+
       // Reset form
       setAllUsers("");
       setPlan("");
       setLicenseToken("");
       setSelectedSalon(null);
-      
+
       // Notify parent component
       if (onLicenseGenerated) {
         onLicenseGenerated();
@@ -194,7 +197,7 @@ const GenerateLicenseSection = ({ onNotify, prefillData = null, onLicenseGenerat
           // Show existing license key in modal
           const salonInfo = salon;
           const salonName = salonInfo?.salonName || salonInfo?.ownerName || 'User';
-          
+
           setGeneratedLicense({
             licenseKey: existingLicense.licenseKey,
             salonName: salonName,
@@ -202,14 +205,14 @@ const GenerateLicenseSection = ({ onNotify, prefillData = null, onLicenseGenerat
             isExisting: true
           });
           setShowLicenseModal(true);
-          
+
           onNotify?.(
             `This salon already has an active license. Showing existing license key.`
           );
           return;
         }
       }
-      
+
       const errorMessage = error?.data?.message || error?.message || "Failed to generate license";
       onNotify?.(errorMessage);
     }
@@ -219,7 +222,7 @@ const GenerateLicenseSection = ({ onNotify, prefillData = null, onLicenseGenerat
   const handleUserChange = (e) => {
     const value = e.target.value;
     setAllUsers(value);
-    
+
     if (value) {
       const salon = salons.find(s => s._id === value || s.id === value || s.salonName === value);
       if (salon) {
@@ -236,7 +239,7 @@ const GenerateLicenseSection = ({ onNotify, prefillData = null, onLicenseGenerat
   return (
     <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
       <h2 className="text-lg font-semibold text-gray-800 mb-4">Generate Licence</h2>
-      
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* All Users Dropdown - Pending salons shown first */}
         <div className="relative">
@@ -390,7 +393,7 @@ const GenerateLicenseSection = ({ onNotify, prefillData = null, onLicenseGenerat
                 </svg>
               </button>
             </div>
-            
+
             {generatedLicense.isExisting && (
               <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                 <p className="text-sm text-yellow-800">
@@ -398,7 +401,7 @@ const GenerateLicenseSection = ({ onNotify, prefillData = null, onLicenseGenerat
                 </p>
               </div>
             )}
-            
+
             <div className="mb-4">
               <p className="text-sm text-gray-600 mb-2">License for:</p>
               <p className="text-base font-medium text-gray-800">{generatedLicense.salonName}</p>
